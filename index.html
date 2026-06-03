@@ -228,9 +228,13 @@ function drawBlock(x, y, color) {
 //    }
 // ============================================================
 function initBoard() {
-  // TODO: 여기에 구현하세요
-
+  board = []; // 보드 초기화
+  for (let r = 0; r < ROWS; r++) {
+    // 각 행을 null로 채운 배열로 추가
+    board.push(new Array(COLS).fill(null));
+  }
 }
+
 
 // ============================================================
 //  TODO 2: createPiece()
@@ -247,11 +251,22 @@ function initBoard() {
 //    중앙 x = Math.floor((COLS - shape[0].length) / 2)
 // ============================================================
 function createPiece() {
-  // TODO: 여기에 구현하세요
+  // PIECE_TYPES 중 랜덤으로 하나 선택
+  const type = PIECE_TYPES[Math.floor(Math.random() * PIECE_TYPES.length)];
+  const shape = SHAPES[type];
 
+  // 보드 중앙에 배치 (블록 너비 기준으로 중앙 계산)
+  const startX = Math.floor((COLS - shape[0].length) / 2);
+
+  currentPiece = {
+    shape: shape,
+    color: COLORS[type],
+    x: startX,
+    y: 0,
+  };
 }
 
-// ============================================================
+//============================================================
 //  TODO 3: isCollision(piece, dx, dy)
 //  ─────────────────────────────────────────────────────────
 //  piece 를 (dx, dy) 만큼 이동했을 때 충돌이 발생하면 true,
@@ -267,8 +282,25 @@ function createPiece() {
 //    값이 1인 칸의 실제 보드 좌표 = (piece.x + col + dx, piece.y + row + dy)
 // ============================================================
 function isCollision(piece, dx, dy) {
-  // TODO: 여기에 구현하세요
+  for (let row = 0; row < piece.shape.length; row++) {
+    for (let col = 0; col < piece.shape[row].length; col++) {
+      // 블록이 존재하는 칸만 검사
+      if (piece.shape[row][col] === 0) continue;
 
+      const newX = piece.x + col + dx; // 이동 후 X 좌표
+      const newY = piece.y + row + dy; // 이동 후 Y 좌표
+
+      // ① 왼쪽·오른쪽 벽 충돌
+      if (newX < 0 || newX >= COLS) return true;
+
+      // ② 바닥 충돌
+      if (newY >= ROWS) return true;
+
+      // ③ 다른 블록과 충돌 (Y가 0 미만이면 아직 보드 밖이므로 건너뜀)
+      if (newY >= 0 && board[newY][newX] !== null) return true;
+    }
+  }
+  return false; // 충돌 없음
 }
 
 // ============================================================
@@ -288,9 +320,22 @@ function isCollision(piece, dx, dy) {
 //    const rows = shape.length, cols = shape[0].length;
 //    결과 배열 크기는 cols × rows (가로·세로 뒤바뀜)
 // ============================================================
-function rotate(shape) {
-  // TODO: 여기에 구현하세요
 
+function rotate(shape) {
+  const rows = shape.length;
+  const cols = shape[0].length;
+
+  // 회전 후 크기는 cols × rows (가로·세로 뒤바뀜)
+  const rotated = Array.from({ length: cols }, () => new Array(rows).fill(0));
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      // 90도 시계방향: 새 배열의 [c][rows-1-r] = 원래 [r][c]
+      rotated[c][rows - 1 - r] = shape[r][c];
+    }
+  }
+
+  return rotated;
 }
 
 // ============================================================
@@ -301,9 +346,20 @@ function rotate(shape) {
 //  board[y][x] = currentPiece.color 로 설정하세요.
 // ============================================================
 function placePiece() {
-  // TODO: 여기에 구현하세요
+  for (let row = 0; row < currentPiece.shape.length; row++) {
+    for (let col = 0; col < currentPiece.shape[row].length; col++) {
+      if (currentPiece.shape[row][col] === 0) continue; // 빈 칸 건너뜀
 
+      const boardX = currentPiece.x + col;
+      const boardY = currentPiece.y + row;
+
+      if (boardY >= 0) {
+        board[boardY][boardX] = currentPiece.color; // 색상으로 고정
+      }
+    }
+  }
 }
+
 
 // ============================================================
 //  TODO 6: clearLines()
@@ -325,9 +381,26 @@ function placePiece() {
 //    dropInterval = Math.max(100, 1000 - (level - 1) * 100);
 // ============================================================
 function clearLines() {
-  // TODO: 여기에 구현하세요
+  const points = [0, 100, 300, 500, 800]; // 1~4줄 동시 제거 점수
+  let count = 0;
 
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r].every(cell => cell !== null)) { // 행이 가득 찼으면
+      board.splice(r, 1);                        // 해당 행 제거
+      board.unshift(new Array(COLS).fill(null)); // 맨 위에 빈 행 추가
+      r++;    // 같은 인덱스 재검사 (행이 밀려 내려왔으므로)
+      count++;
+    }
+  }
+
+  if (count > 0) {
+    score        += points[count] * level;
+    linesCleared += count;
+    level         = Math.floor(linesCleared / 10) + 1;
+    dropInterval  = Math.max(100, 1000 - (level - 1) * 100); // 최소 100ms
+  }
 }
+
 
 // ============================================================
 //  TODO 7: draw()
@@ -342,7 +415,7 @@ function clearLines() {
 //  이미 배경 지우기(①)는 아래에 작성되어 있습니다.
 // ============================================================
 function draw() {
-  // ① 배경 지우기 — 완성
+  // ① 배경 지우기
   ctx.fillStyle = '#0f172a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -362,17 +435,32 @@ function draw() {
     ctx.stroke();
   }
 
-  // TODO ②: board 고정 블록 그리기
-  //   for (let r = 0; r < ROWS; r++) {
-  //     for (let c = 0; c < COLS; c++) {
-  //       if (board[r][c]) drawBlock(c, r, board[r][c]);
-  //     }
-  //   }
+  // ② 보드에 고정된 블록 그리기
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c]) {
+        drawBlock(c, r, board[r][c]); // 색상이 있으면 블록 그리기
+      }
+    }
+  }
 
-  // TODO ③: currentPiece 그리기
-  //   currentPiece.shape 의 값이 1인 칸을
-  //   drawBlock(currentPiece.x + col, currentPiece.y + row, currentPiece.color) 로 그리기
+  // ③ 현재 떨어지는 블록 그리기
+  if (currentPiece) {
+    for (let row = 0; row < currentPiece.shape.length; row++) {
+      for (let col = 0; col < currentPiece.shape[row].length; col++) {
+        if (currentPiece.shape[row][col]) {
+          // 보드 좌표 = 블록 기준 좌표 + 현재 피스 위치
+          drawBlock(
+            currentPiece.x + col,
+            currentPiece.y + row,
+            currentPiece.color
+          );
+        }
+      }
+    }
+  }
 }
+
 
 // ============================================================
 //  TODO 8: 키보드 입력 처리
@@ -392,24 +480,53 @@ document.addEventListener('keydown', (e) => {
 
   switch (e.key) {
     case 'ArrowLeft':
-      // TODO: 왼쪽 이동
+      // 왼쪽에 충돌이 없으면 x 감소
+      if (!isCollision(currentPiece, -1, 0)) {
+        currentPiece.x -= 1;
+      }
       break;
 
     case 'ArrowRight':
-      // TODO: 오른쪽 이동
+      // 오른쪽에 충돌이 없으면 x 증가
+      if (!isCollision(currentPiece, 1, 0)) {
+        currentPiece.x += 1;
+      }
       break;
 
     case 'ArrowDown':
-      // TODO: 빠른 하강
+      // 아래로 한 칸 이동 가능하면 내려감
+      if (!isCollision(currentPiece, 0, 1)) {
+        currentPiece.y += 1;
+      } else {
+        // 이미 바닥이면 블록 고정 → 줄 제거 → 새 블록 생성
+        placePiece();
+        clearLines();
+        createPiece();
+        updateUI();
+        // 새 블록이 생성 즉시 충돌이면 게임 오버
+        if (isCollision(currentPiece, 0, 0)) {
+          gameOver = true;
+          showGameOver();
+        }
+      }
       break;
 
     case 'ArrowUp':
-      // TODO: 블록 회전
+      // 90도 시계방향 회전 시도
+      const rotatedShape = rotate(currentPiece.shape);
+      const prevShape = currentPiece.shape; // 원래 shape 백업
+      currentPiece.shape = rotatedShape;
+
+      // 회전 후 충돌이 생기면 원래 shape으로 복원
+      if (isCollision(currentPiece, 0, 0)) {
+        currentPiece.shape = prevShape;
+      }
       break;
   }
 
-  draw();  // 이동 후 바로 화면 갱신
+  draw(); // 키 입력 후 즉시 화면 갱신
 });
+
 
 // ============================================================
 //  TODO 9: gameLoop(timestamp)
@@ -431,13 +548,36 @@ document.addEventListener('keydown', (e) => {
 //    5. requestAnimationFrame(gameLoop)
 // ============================================================
 function gameLoop(timestamp) {
-  if (gameOver) return;
+  if (gameOver) return; // 게임 오버 시 루프 종료
 
-  // TODO: 여기에 구현하세요
+  const deltaTime = timestamp - lastTime; // 마지막 프레임과의 시간 차이
 
-  draw();  // 일단 매 프레임 draw 는 실행되도록 유지
-  requestAnimationFrame(gameLoop);
+  // dropInterval마다 블록을 한 칸 자동 하강
+  if (deltaTime > dropInterval) {
+    if (!isCollision(currentPiece, 0, 1)) {
+      // 아래로 이동 가능하면 한 칸 내려감
+      currentPiece.y += 1;
+    } else {
+      // 바닥 또는 다른 블록에 닿았으면 고정
+      placePiece();
+      clearLines();
+      createPiece();
+      updateUI();
+
+      // 새 블록 생성 즉시 충돌 = 게임 오버
+      if (isCollision(currentPiece, 0, 0)) {
+        gameOver = true;
+        showGameOver();
+        return; // 루프 즉시 종료
+      }
+    }
+    lastTime = timestamp; // 마지막 하강 시각 갱신
+  }
+
+  draw(); // 매 프레임 화면 갱신
+  requestAnimationFrame(gameLoop); // 다음 프레임 예약
 }
+
 
 // ============================================================
 //  ■ UI 업데이트 헬퍼 — 이미 완성되어 있습니다
